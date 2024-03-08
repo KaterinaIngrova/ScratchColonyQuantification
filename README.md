@@ -9,6 +9,4 @@ Colony_function.m
  - Function for analyzing data from colony formation assay experiments
  - Provides data on the number of colonies and the area of the well covered by colonies in cm2
 
-Datasets/
- - Folder with sample datasets for function testing
 
