@@ -1,220 +1,207 @@
-%% Studium vlivu ropivakain hydrochloridu na migrační a proliferační schopnost nádorových buněk lidského osteosarkomu SaOS-2
-% Kateřina Ingrová - BTBIO, 219244
-% MATLAB R2020a
+%The effect of gentamicin on the migration of SaOS-2 cell line
 
-%HODNOCENÍ VLIVU LA ROPIVAKAINU NA MIGRACI BUNĚK SaOS-2
-
+%Example of calling function with the obtained results
 results = Scratch_function('C:\Users\user\Desktop\diplomka\matlab\nove bunky snimky Inna\Scratch', 0.6369);
 
-function [results] = Scratch_function(cesta_k_obrazkum, velikost_pixelu_mikrom);
-% 1. Získání seznamu obrázků
-    cd(cesta_k_obrazkum);
-    images = dir(fullfile(cesta_k_obrazkum, '*.tif'));
+%The function for the evaluation - the inputs are a path to the microscopy images and size of
+%pixel in micrometers, the obtained results are saved into cell (scratch
+%width in micrometers and the scratch area in mm2)
 
-    % 2. Inicializace výsledků
+function [results] = Scratch_function(path_to_image, size_of_pixel_micrometer);
+    
+    %List of images 
+    cd(path_to_image);
+    files = dir(fullfile(path_to_image, '*.*'));
+    images = files(~[files.isdir]);
+
+    %Inicialization of cell for storing results
     number_of_images = length(images);
     results = cell(number_of_images, 3);
-    results(1,1) = {'Název obrázku'};
-    results(1,2) = {'Průměrná šířka rýhy [μm]'};
-    results(1,3) = {'Plocha rýhy [mm2]'};
+    results(1,1) = {'Name of the image'};
+    results(1,2) = {'Average scratch width [μm]'};
+    results(1,3) = {'Scratch area [mm2]'};
 
-    % 3. Zpracování jednotlivých obrázků
+    %For loop for loading current image
     %For cyklus k procházení jednotlivých snímků.
-    for i=9:9 %number_of_images 
-        name = images(i).name; %název snímku
-        results(i+1,1)={name}; %uložení názvu do pole
-        concrete_image = imread(name); 
+    for i=1:number_of_images
+        name = images(i).name; %name of image
+        results(i+1,1)={name}; %saving the name of image to created cell
+        concrete_image = imread(name); %load concrete image
         disp('------------------------');
         disp(['Název snímku ', name]);
 
-        %Zobrazení snímku konkretního snímku ze složky.
+        %Suplot of important steps of algorithm 
         figure(1); 
         subplot(2,3,1)
-        imshow(concrete_image);
+        imshow(concrete_image); 
         title('1');
 
-        %Zjištění rozměrů snímku.
+        %Determination of image size
         size_of_image = size(concrete_image); 
         number_of_rows = size_of_image(1);
         number_of_columns = size_of_image(2);
         number_of_pixels = number_of_rows*number_of_columns;
-
-        %Převednení šedotónového snímku do double formátu.
-        double_gray = double(concrete_image);
-
-        %Zlepšení kontrastu snímku.
+        
+        %Finding the dimension of image, in the case of RGB image is image
+        %converted to grayscale, in both cases is applying contrast
+        %enhancement on images
+        if ndims(concrete_image) == 3 
+        sedoton = rgb2gray(concrete_image);
+        contrast_enhancement = imadjust(sedoton);
+    
+        elseif ndims(concrete_image) == 2
         contrast_enhancement = imadjust(concrete_image);
+        
+        end
 
-        %Nalezení hran pomocí Cannyho detektoru.
-        edge_image = edge(contrast_enhancement, 'Canny', [0.08 0.1], 5); %0,03
+        
+        %Finding the edges of image by Canny detector
+        edge_image = edge(contrast_enhancement, 'Canny', [0.08 0.1], 5); 
 
-        %Zobrazení hranové reprezentace.
+        %Suplot of important steps of algorithm 
         subplot(2,3,2)
         imshow(edge_image);
         title('2');
 
-        %Nalezení kruhů, které odpovídají mrtvým buňkám.
+        %Find circles with coresponding to dead cells
         [centers, radii, metric] = imfindcircles(edge_image,[10 25]);
-
-        %Zobrazení mrvých buněk.
-%         figure(4);
-%         imshow(edge_image); 
-%         viscircles(centers, radii, 'EdgeColor', 'b'); %zobrazení kruhů modře
+        % figure(4);
+        % imshow(edge_image); 
+        % viscircles(centers, radii, 'EdgeColor', 'b'); 
+        
+        %Make copy of edge image for segmentation
         outputImage = edge_image; 
 
-        %Vytvoření jasového profilu snímku.
-        imageProfile = mean(double_gray, 1);  % Průměr hodnot pro každý sloupec. contrast_enhanement
+        %Make brightness profile of image
+        imageProfile = mean(contrast_enhancement, 1);
+        % figure(5);
+        % plot(imageProfile, 'LineWidth', 2);
+        % title('Brightness profile');
+        % xlabel('Pozice');
+        % ylabel('Průměrný jas');
 
-        %Zobrazení jasového profilu.
-%         figure(5);
-%         plot(imageProfile, 'LineWidth', 2);
-%         title('Jasový profil pro každý sloupec');
-%         xlabel('Pozice');
-%         ylabel('Průměrný jas');
-
-        %Nalezení pozice minima v jasovém profilu.
+        %Finding minimum in brightness profile
         [minValue, minIndex] = min(imageProfile);
-
-        %Zvýraznění minima na jasovém profilu.
         %hold on;
-        %plot(minIndex, minValue, 'ro', 'MarkerSize', 10);  % Červený kruh označuje minimum.
+        %plot(minIndex, minValue, 'ro', 'MarkerSize', 10);
 
-
-        %fprintf('Minimum jasového profilu je na pozici: %d\n', minIndex);
-
-        %Filtrace maxim s průměrným jasem.
-        [pks, locs] = findpeaks(imageProfile, 'MinPeakHeight', mean(imageProfile)); %-3
+        %Filtration of maximas with average brightness
+        [pks, locs] = findpeaks(imageProfile, 'MinPeakHeight', mean(imageProfile));
         maxValues = pks;
         maxIndices = locs;
 
-        %Nalezení nejbližšího maxima vlevo od minima
-        maxima_vlevo = locs(locs < minIndex);
-        nearest_maximum_left = max(maxima_vlevo);
+        %Finding the nearest maxima on the left from minima, witch represent
+        %a border of scratch
+        left_maxima = locs(locs < minIndex);
+        nearest_maximum_left = max(left_maxima);
 
-        %Nalezení nejbližšího maxima vpravo od minima
-        maxima_vpravo = locs(locs > minIndex);
-        nearest_maximum_right = min(maxima_vpravo);
-
-        % Výsledky
-        %disp(['Nejbližší maximum vlevo: ', num2str(nearest_maximum_left)]);
-        %disp(['Nejbližší maximum vpravo: ', num2str(nearest_maximum_right)]);
-
-        %plot(nearest_maximum_left, imageProfile(nearest_maximum_left), 'go', 'MarkerSize', 8);  % Zelený kruh označuje maximum.
-        %plot(nearest_maximum_right, imageProfile(nearest_maximum_right), 'go', 'MarkerSize', 8);  % Zelený kruh označuje maximum.
-
+        %Finding the nearest maxima on the right from minima, witch
+        %represent a border of scratch
+        right_maxima = locs(locs > minIndex);
+        nearest_maximum_right = min(right_maxima);
+        %plot(nearest_maximum_left, imageProfile(nearest_maximum_left), 'go', 'MarkerSize', 8);  
+        %plot(nearest_maximum_right, imageProfile(nearest_maximum_right), 'go', 'MarkerSize', 8); 
         %hold off
 
+        %Threshold of average brightness of dead cells to removing them
+        brightnessThreshold = 70; 
 
-        %Hranice průměrné hodnoty jasu pro odstranění buňek (upravte podle potřeby).
-        brightnessThreshold = 70; %70
-
-        %Odstranění mrtvých buněk z oblasti hranice rýhy.
+        %Removing dead cells from the scratch region
         for h = 1:size(centers,1) 
             center = round(centers(h, :));
-            radius = round(radii(h)); %4
+            radius = round(radii(h)); 
 
-            %Vytvoření masky pro daný kruh.
+            %Create mask for each dead cell
             [xx, yy] = meshgrid(1:size(outputImage, 2), 1:size(outputImage, 1));
             mask = (xx - center(1)).^2 + (yy - center(2)).^2 <= radius^2;
 
-            %Omezení masky na sloupce od 640 do 1280 - na rýhu.
-            mask(:, 1:nearest_maximum_left) = false; %768
-            mask(:, nearest_maximum_right:end) = false; %1152
+            %Remove them only from the scratch region
+            mask(:, 1:nearest_maximum_left) = false; 
+            mask(:, nearest_maximum_right:end) = false; 
 
-            % Průměrná hodnota jasu pro buňky v masce.
+            %Average brightness of dead cells
             averageBrightness = mean(contrast_enhancement(mask));
 
-            %Odstranění mrtvých buněk z binární hranové reprezentace.
-            % Odstranění buňek s průměrnou hodnotou jasu nad hranicí.
-            if averageBrightness > brightnessThreshold %%|| any(surroundingMask(:))
-                outputImage(mask) = 0; % Nastavení hodnoty na 0 (černá) pro mrtvé buňky.
+            %Removing dead cells from edge representation, the dead cells
+            %must have average brightness higher then threshold brightness
+            if averageBrightness > brightnessThreshold 
+                outputImage(mask) = 0; %set death cells to zero
             end
         end
 
-        %Zobrazení snímků po odstranění mrtvých buněk z oblasti rýhy.
+        %Suplot of important steps of algorithm 
         subplot(2,3,3)
         imshow(outputImage);
         title('3');
 
-        %Použití morfologických operátorů. 
-        se=strel('disk',18); %20 puvodne, pozdeji 18
-        after=imclose(outputImage,se); %aplikace closingu
-        se1 = strel('disk',8);%5 puvodne
-        after2=imopen(after,se1); %aplikace openingu
-
-        %Zobrazení snímku po použítí morfologických operací.
+        %Using morphological operations for segmentation 
+        se=strel('disk',18); 
+        after=imclose(outputImage,se);
+        se1 = strel('disk',8);
+        after2=imopen(after,se1);
+        
+        %Suplot of important steps of algorithm 
         subplot(2,3,4)
         imshow(after2);
         title('4');
         
-        copy_2 = after2;
+        
+        morphological_operations = after2;
 
-        %Nastavení pro prvních 5 a posledních 5 řádků první a poslední třetiny
-        %sloupců na 1. 
-    %     for row = 1:number_of_rows
-    %         for column = 1:number_of_columns
-    %             if (column <= number_of_columns / 3 || column > (2 * number_of_columns / 3)) && ((row <= 5 || row > (number_of_rows - 5)) || (column <= 5 || column > (number_of_columns - 5)))
-    %                 copy_2(row, column) = 1;
-    %             end
-    %         end
-    %     end
-
+        %Setting first and last 5 rows to 1 for better hole filling 
         for row = 1:number_of_rows
             for column = 1:number_of_columns
                 if (column <=  nearest_maximum_left || column > nearest_maximum_right) && ((row <= 5 || row > (number_of_rows - 5)) || (column <= 5 || column > (number_of_columns - 5)))
-                    copy_2(row, column) = 1;
+                    morphological_operations(row, column) = 1;
                 end
             end
         end
+        
+        %Calculate numbef of pixels witch represent cells and pixels witch
+        %represent scratch
+        number_white = sum(morphological_operations(:) == 1);
+        number_black = sum(morphological_operations(:) == 0);
 
-        number_white = sum(copy_2(:) == 1);
-        number_black = sum(copy_2(:) == 0);
+        %Hole filling
+        segmented_image = imfill(morphological_operations,'holes');
 
-        %Vyplnění děr na vysegmentovaném obrázku rýhy.
-        segmented_image = imfill(copy_2,'holes');
+        %Diffent way (hole filling was problem) for images wich have got
+        %less then 10% of sctach pixels
+        if number_black/number_of_pixels < 0.1 
 
-        %Zabránění vyplňování děr v oblasti rýhy, pokud poměr černých pixelů
-        %bude menší než 10 %. 
-        if number_black/number_of_pixels < 0.1 %20
-            %start_column = nearest_maximum_left; %number_of_columns / 3;
-            %end_column = nearest_maximum_right; %2 *(number_of_columns / 3);
-            %segmented_image(:, 670:1300) = copy_2(:, 670:1300);
+            %Create local map of standard deviation
+            local_std = stdfilt(contrast_enhancement);
+            %figure(8);
+            %imshow(local_std, []);
 
-            % lokalni mapa 
-            lokalni_std = stdfilt(contrast_enhancement);
+            %Create local map of entropy
+            local_entropy = entropyfilt(local_std);
+            %figure(9);
+            %imshow(local_entropy, []);
 
-            %Zobrazení lokální mapy směrodatných odchylek.
-%             figure(8);
-%             imshow(lokalni_std, []);
+            %Create zeros mask for segmentation
+            segmentation_second_case = zeros(size(local_entropy));
 
-            local_entropy = entropyfilt(lokalni_std);
+            %First part of segmenation - put to zero mask 1 if
+            %local_entropy is higher than 0
+            segmentation_second_case(local_entropy > 0) = 1;
+            segmentation_second_case = imfill(segmentation_second_case,'holes');
+            segmentation_second_case = ~segmentation_second_case;
+            %figure(10);
+            %imshow(segmentation_second_case);
 
-            %Zobrazení lokální mapy entropie.
-%             figure(9);
-%             imshow(local_entropy, []);
+            %Another part - use morphological operations
+            se=strel('disk',12); 
+            o=imclose(segmentation_second_case,se); 
+            se1 = strel('disk',3);
+            after_o=imopen(o,se1); 
 
-            image_2 = zeros(size(local_entropy));
-
-            % Nastavení hodnot pixelů na 1, pokud lokální entropie je menší než 1
-            image_2(local_entropy > 0) = 1;
-            image_2 = imfill(image_2,'holes');
-            image_2 = ~image_2;
-
-            %Zobrazení binárního obrazu
-%             figure(10);
-%             imshow(image_2);
-
-
-            se=strel('disk',12); %20 puvodne, pozdeji 18
-            o=imclose(image_2,se); %aplikace closingu
-            se1 = strel('disk',3);%5 puvodne
-            after_o=imopen(o,se1); %aplikace openingu
-
-            %Zobrazení obrazu po morfologických operacích.
+            %Suplot of important steps of algorithm 
             subplot(2,3,4)
             imshow(after_o);
             title('4');
-
+            
+            %Put first 5 and last 5 rows to 1 for better segmentation
             for row = 1:number_of_rows
                 for column = 1:number_of_columns
                     if (column <=  nearest_maximum_left || column > nearest_maximum_right) && ((row <= 5 || row > (number_of_rows - 5)) || (column <= 5 || column > (number_of_columns - 5)))
@@ -222,115 +209,85 @@ function [results] = Scratch_function(cesta_k_obrazkum, velikost_pixelu_mikrom);
                     end
                 end
             end
-
+            
+            %Fill holes 
             segmented_image = imfill(after_o, 'holes');
-
-            segmented_image(:, 670:1300) = after_o(:, 670:1300);
             
-            % Najdi oblasti s hodnotou nula v segmented_image
+            %Scratch area without filling holes
+            segmented_image(:, nearest_maximum_left:nearest_maximum_right) = after_o(:, nearest_maximum_left:nearest_maximum_right);
+        
+            
+            %Find in segmented image scratch part
             zero_regions = bwconncomp(segmented_image == 0);
-
-            % Zobraz jednotlivé oblasti s nulovými hodnotami
-%             figure;
-%             imshow(segmented_image);
-%             hold on;
-
-            for i = 1:zero_regions.NumObjects
-                % Získání pixelů pro každou oblast
-                pixels = zero_regions.PixelIdxList{i};
-
-                % Převedení lineárního indexu na souřadnice
-                [rows, cols] = ind2sub(size(segmented_image), pixels);
-
-                % Vykresli hranice oblasti
-%                 plot(cols, rows, 'r.', 'MarkerSize', 5);
-            end
-% 
-%             hold off;
-%             title('Oblasti s nulovými hodnotami');
+            %figure;
+            %imshow(segmented_image);
+            %hold on;
             
-            % Vytvoř pole pro ukládání průměrných hodnot kontrastu v jednotlivých oblastech
-            average_contrast_values = zeros(1, zero_regions.NumObjects);
+            %For loop for all sratch part
+            for i = 1:zero_regions.NumObjects
+                %Get pixels of each part
+                pixels = zero_regions.PixelIdxList{i};
+                [rows, cols] = ind2sub(size(segmented_image), pixels);
+                %plot(cols, rows, 'r.', 'MarkerSize', 5);
+            end
+            %hold off;
+            %title('Oblasti s nulovými hodnotami');
+            
+            %Find average brightness for them
+            average_brightness_value = zeros(1, zero_regions.NumObjects);
 
             for i = 1:zero_regions.NumObjects
-                % Získání pixelů pro každou oblast
+                %Find pixels for each region
                 pixels = zero_regions.PixelIdxList{i};
 
-                % Extrahuj hodnoty kontrastu v dané oblasti
-                contrast_values = contrast_enhancement(pixels);
+                %Find brightness in region
+                brightness_values = contrast_enhancement(pixels);
 
-                % Vypočti průměrnou hodnotu kontrastu v dané oblasti
-                average_contrast = mean(contrast_values);
+                %Calcuated the mean value in region
+                average_brightness = mean(brightness_values);
 
-                 % Pokud je průměrná hodnota kontrastu větší než threshold
-                if average_contrast > 70
-                    % Nastav bílou barvu v segmented_image pro danou oblast
-                    segmented_image(pixels) = 1;  % 1 odpovídá bílé barvě v binárním obrázku
+                %If the average brightness is higher then threshold, it is
+                %dead cell and fill it 
+                if average_brightness > 70
+                    segmented_image(pixels) = 1; 
                 end
             end
         end
 
 
 
-        %Zobrazení vysegmentovaného obrázku.
+        %Suplot of important steps of algorithm 
         subplot(2,3,5)
         imshow(segmented_image);
         title('5');
 
-        %Výpočet šířky rýhy kromě prvních a posledních 5 řádků.
+        %Calculating the parameters of scratch
         width_scratch_each_row = sum(segmented_image(6:(end-5),:) == 0, 2);
         mean_of_scratch = mean(width_scratch_each_row);
-        mean_of_scratch_mikrometr = mean_of_scratch*velikost_pixelu_mikrom; % v mm (1447 1918 - odpovídá 300 mikrometrum což je 471 => 1 pixel = 0,6369)
-        %sirka_ryhy = zeros(number_of_rows, number_of_columns);
-        %sirka = number_of_columns/3;
+        mean_of_scratch_micrometer = mean_of_scratch*size_of_pixel_micrometer; 
+        area_scratch = (sum(width_scratch_each_row)*(size_of_pixel_micrometer^2)/1000000); % Předpokládáme, že šířka rýhy je součtem šířek v každém řádku.
+        disp(['Average scratch width: ', num2str(mean_of_scratch_micrometer), ' μm']);
+        disp(['Scratch area: ' num2str(area_scratch) ' mm^2']);
 
+        %Saving the results 
+        results(i+1,2)={mean_of_scratch_micrometer};
+        results(i+1,3)={area_scratch};
 
-    %     for radky = 1:number_of_rows;
-    %         for column = sirka:(sirka*2);
-    %             if segmented_image(radky,column) ==0;
-    %                sirka_ryhy(radky,column)= 1;
-    %             end
-    %         end
-    %     end
-    %     
-    %     
-        %suma_ryhy = sum(sirka_ryhy,2);
-        %rows_to_remove = any(suma_ryhy == 0,2); %%odstranit prvnich a poslednich 5 najit indexy
-        %suma_ryhy(rows_to_remove, :) = []; %odstranit
-        %prumer_ryhy = mean(suma_ryhy);  
-
-        %Uložení průměrné rýhy v mikrometech do pole.
-        results(i+1,2)={mean_of_scratch_mikrometr};
-
+        %Find the boundaries of scratch on original image
         edgeImage = bwperim(segmented_image);
-
-        % Vyloučit první a poslední řádek a sloupec
         edgeImage([1:5, number_of_rows-4:number_of_rows], :) = 0;
         edgeImage(:, [1, end]) = 0;
-        % Získat pozice bílých pixelů na hranovém obrazu
         [row, col] = find(edgeImage == 1);
 
-        % Přidat hranu rýhy na původní obrazek
+        %Suplot of important steps of algorithm 
         subplot(2,3,6)
         imshow(concrete_image);
         title('6');
         hold on;
-        plot(col, row, 'g.', 'Marker', '.', 'MarkerSize', 5); % Jasné modré body
+        plot(col, row, 'g.', 'Marker', '.', 'MarkerSize', 5);
         hold off;
-        %title('Hranice vysegmentované rýhy na původním obrazku');
-
-        disp(['Průměrná šířka rýhy: ', num2str(mean_of_scratch_mikrometr), ' μm']);
-
-
-        % Výpočet plochy rýhy
-        plocha_ryhy = (sum(width_scratch_each_row)*(velikost_pixelu_mikrom^2)/1000000); % Předpokládáme, že šířka rýhy je součtem šířek v každém řádku.
-
-        % Případně, pokud máte šířku rýhy v každém řádku ve vektoru sirka_rhy_v_kazdem_radku, můžete použít:
-        % plocha_rhy = sum(sirka_rhy_v_kazdem_radku) * pocet_sloupcu;
-
-        disp(['Plocha rýhy: ' num2str(plocha_ryhy) ' mm^2']);
-        results(i+1,3)={plocha_ryhy};
 
     end
 end
+
 
