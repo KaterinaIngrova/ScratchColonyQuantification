@@ -22,7 +22,6 @@ function [results] = Scratch_function(path_to_image, size_of_pixel_micrometer);
     results(1,3) = {'Scratch area [mm2]'};
 
     %For loop for loading current image
-    %For cyklus k procházení jednotlivých snímků.
     for i=1:number_of_images
         name = images(i).name; %name of image
         results(i+1,1)={name}; %saving the name of image to created cell
