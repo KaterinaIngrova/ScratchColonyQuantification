@@ -1,7 +1,7 @@
 %The effect of gentamicin on the migration of SaOS-2 cell line
 
 %Example of calling function with the obtained results
-results = Scratch_function('C:\Users\user\Desktop\diplomka\matlab\nove bunky snimky Inna\Scratch', 0.6369);
+%results = Scratch_function('C:\Users\user\Desktop\diplomka\matlab\nove bunky snimky Inna\Scratch', 0.6369);
 
 %The function for the evaluation - the inputs are a path to the microscopy images and size of
 %pixel in micrometers, the obtained results are saved into cell (scratch
