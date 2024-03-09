@@ -1,260 +1,263 @@
-%% Studium vlivu ropivakain hydrochloridu na migrační a proliferační schopnost nádorových buněk lidského osteosarkomu SaOS-2
-% Kateřina Ingrová - BTBIO, 219244
-% MATLAB R2020a
+%Effect of gentamicin on colony formation in the SaOS-2 cell line
 
-results = Colony_function(9.6, 'C:\Users\user\Desktop\diplomka\matlab\colony_EEICT');
-%HODNOCENÍ VLIVU LA ROPIVAKAINU NA PROLIFERACI BUNĚK SaOS-2
-function [results] = Colony_function(obsah, cesta_k_obrazkum, colony_minimum)
+%Example of calling function with the obtained results
+%results = Colony_function(9.6, 'C:\Users\user\Desktop\diplomka\matlab\colony_20_11_nahore', 0.03);
 
-    % 1. Získání seznamu obrázků
-    cd(cesta_k_obrazkum);
-    images = dir(fullfile(cesta_k_obrazkum, '*.jpg'));
+%Evaluation function - inputs are the path to the images, the area of the well in cm2 and the minimum colony size. 
+%The obtained results are stored in the cell (number of colonies, area covered by colonies in cm2).
+function [results] = Colony_function(well_area, path_to_image, colony_minimum)
 
-    % 2. Inicializace výsledků
+    %List of images 
+    cd(path_to_image);
+    files = dir(fullfile(path_to_image, '*.*'));
+    images = files(~[files.isdir]);
+
+    %Inicialization of cell for storing results
     number_of_images = length(images);
     results = cell(number_of_images, 3);
-    results{1,1} = 'Název obrázku';
-    results{1,2} = 'Colony Area';
-    results{1,3} = 'Počet kolonií';
+    results{1,1} = 'Image name';
+    results{1,2} = 'Colony area';
+    results{1,3} = 'Colony count';
 
-    % 3. Zpracování jednotlivých obrázků
-    for snimek = 1:number_of_images
-        % 3.1 Načtení obrázku
-        name = images(snimek).name;
-        results(snimek+1,1)={name}; %uložení názvu do pole
-        image = imread(name);
+    %For loop for loading current image
+    for i = 1:number_of_images
+        name = images(i).name; %name of image
+        results(i+1,1)={name}; %saving the name of image to created cell
+        image = imread(name); %load concrete image
+        
+        %Show the image for individual marking well
         figure(1);
         imshow(image);
         disp('------------------------');
         disp(['Název snímku ', name]);
  
-        %Zjištění rozměrů obrázku.
+        %Determination of image size
         size_of_image = size(image); 
         rows = size_of_image(1);
         columns = size_of_image(2);
 
-        %Vytvoření výřezu snímku kultivační jamky (JE NUTNÉ KLIKNOUT NA MÍSTO
-        %KULTIVAČNÍ JAMKY, NASTAVIT ELIPSU A VÝBĚR KULTIVAČNÍ JAMKY POTVRDIT
-        %DVOJKLIKEM.
-
-        % Vytvoříme výběr kruhu (interaktivně)
+        %Create a slice of the image of the cultivation well (MUST CLICK ON THE PLACE
+        %CULTURE WELL, SET THE ELLIPSE AND CONFIRM THE SELECTION OF THE
+        %CULTURE WELL DOUBLE CLICK)
         h_axes = gca;
-        kruh = imellipse(h_axes);
-        setColor(kruh, 'r'); % Nastavení barvy kruhu na červenou
-        wait(kruh); % Čekání na dokončení výběru
+        circle = imellipse(h_axes);
+        setColor(circle, 'r');
+        wait(circle);
 
-        % Získáme pozici kruhu
-        position = getPosition(kruh);
+        %Get position of circle
+        position = getPosition(circle);
 
-        % Uzavřeme figure
-        delete(kruh);
+        %Close figure
+        delete(circle);
 
-        % Získáme střed a poloměr kruhu
+        %Get the centre and radius of the circle
         center = [position(1) + position(3)/2, position(2) + position(4)/2];
         radius = min(position(3:4))/2;
 
-        % Vytvoříme masku pro kruh
+        %Create mask for circle
         [x, y] = meshgrid(1:size(image, 2), 1:size(image, 1));
-        maska_kruhu = ((x - center(1)).^2 + (y - center(2)).^2) <= radius^2;
+        mask_circle = ((x - center(1)).^2 + (y - center(2)).^2) <= radius^2;
 
-        % Vytvoříme výřez
-        vyrez = image;
+        %Create a circle cutout
+        cutout = image;
         for channel = 1:size(image, 3)
-            vyrez(:,:,channel) = image(:,:,channel) .* uint8(maska_kruhu);
+            cutout(:,:,channel) = image(:,:,channel) .* uint8(mask_circle);
         end
         
         
-        % Získání přiblíženého výřezu bez černých okrajů pomocí bounding boxů
-        boundingBox = regionprops(maska_kruhu, 'BoundingBox');
+        %Get a zoomed cutout without black borders using bounding boxes
+        boundingBox = regionprops(mask_circle, 'BoundingBox');
         boundingBox = boundingBox.BoundingBox;
 
-        % Vytvoření finálního vyříznutého snímku
-        vyrez_finalni = imcrop(vyrez, boundingBox);
+        %Final cut-out of well
+        cutout_final = imcrop(cutout, boundingBox);
 
-        % Zobrazení finálního vyříznutého snímku
+        %Suplot of important steps of algorithm 
         figure(2);
         subplot(1,3,1)
-        imshow(vyrez_finalni);
+        imshow(cutout_final);
         title('1');
 
-        % 3.4 %% Zjištění rozměrů vyříznutého snímku a počet černých pixelů reprezentující okraje
-        cerny_okraj_pocet_pixelu = sum(vyrez_finalni(:) == 0); %počet černých pixelů výřezu snímků reprezentující okraje
-        [rows, cols, ~] = size(vyrez_finalni); 
-        celkovy_pocet_pixelu_ve_vyrezu = rows * cols; %celkový počet pixelů výřezu
+        %Detecting the dimensions of the cropped image and the number of black pixels representing the edges
+        background_of_cutout = sum(cutout_final(:) == 0); 
+        [rows, cols, ~] = size(cutout_final); 
+        number_of_pixels_cutout = rows * cols;
 
-        % 3.5 %% Zjištění rozměrů k detekci kolonií obsahujících více než 50 buněk
-        % najití průměru jamky
-        suma_radku = sum(maska_kruhu, 2);
-        suma_sloupcu = sum(maska_kruhu,1);
-        nejvetsi_suma = max(suma_radku);
-        nejvetsi_suma_2 = max(suma_sloupcu);
+        %Dimensioning to detect colonies well_areating more than 50 cells 
+        sum_rows = sum(mask_circle, 2);
+        sum_columns = sum(mask_circle,1);
+        pixels_diameter = max(sum_rows);
+        pixels_diameter_2 = max(sum_columns);
+        well_area = well_area;
+        diameter_mm = (sqrt(well_area/pi)*2)*10;
+        pixel = diameter_mm/pixels_diameter_2;
+        number_of_pixels = colony_minimum/(pixel*pixel);
+        number_of_pixels = ceil(number_of_pixels);
 
-        % 3,5 cm (35mm)= nejvetsi_suma, 1 mm = 50 buněk
-        obsah = obsah;
-        prumer_mm = (sqrt(obsah/pi)*2)*10;
-        pixel = prumer_mm/nejvetsi_suma_2;
-        pocet_pixelu = colony_minimum/(pixel*pixel);
-        pocet_pixelu = ceil(pocet_pixelu);
-
-        % Segmentace buněk na základě k-means
-        %Převední do formátu double
-        img_rgb = vyrez_finalni;
+        %Kmeans segmentation 
+        img_rgb = cutout_final;
         img_double = double(reshape(img_rgb, [], 3));
 
-        %Určení počtu clusterů
+        %Splitting the image in half
+        [rows, cols, ~] = size(img_rgb);
+        half_rows = round(rows / 2);
+        half_cols = round(cols / 2);
+
+        %Number_of_clusters
         num_clusters = 3;
 
-        %Aplikace k-means clustering
-        [~, centers] = kmeans(img_double, num_clusters);
+        %Inicialization of the result segmented image
+        segmentedImg = zeros(rows, cols);
 
-        %Přiřazení pixelů do clusterů
-        [~, cluster_idx] = min(pdist2(img_double, centers), [], 2);
+        %For loop for each half
+        for j = 1:2
+            %Actual half
+            row_start = half_rows * (j - 1) + 1;
+            row_end = min(half_rows * j, rows);
 
-        %Přeformátování clusterového indexu do rozměrů původního obrázku
-        segmentedImg = reshape(cluster_idx, size(img_rgb, 1), size(img_rgb, 2));
+            %Actual half image
+            img_half = img_rgb(: ,row_start:row_end, :);
 
-        %Zjištění počtu pixelů v jednotlivých clusterech
-        num_pixels_in_clusters = histcounts(cluster_idx, 1:(num_clusters + 1));
+            %Kmeans on half image
+            img_half_double = double(reshape(img_half, [], 3));
+            [~, centers] = kmeans(img_half_double, num_clusters);
+            [~, cluster_idx] = min(pdist2(img_half_double, centers), [], 2);
+            segmentedImg(:,row_start:row_end, :) = reshape(cluster_idx, size(img_half, 1), size(img_half, 2), []);
 
-        %Výpis počtu pixelů v jednotlivých clusterech
-        %disp('Počet pixelů v jednotlivých clusterech:');
-        %disp(num_pixels_in_clusters);
+            %Number of pixels in each cluster
+            num_pixels_in_clusters = histcounts(segmentedImg, 1:(num_clusters + 1));
 
-        %Vybrání nejmenšího clusteru - reprezentujicí buňky
-        [~, min_cluster_idx] = min(num_pixels_in_clusters);
+            %Find the smallest cluster
+            [~, min_cluster_idx] = min(num_pixels_in_clusters);
 
-        %Vytvoření binární masky pro nejmenší cluster
-        min_cluster_binary = zeros(size(segmentedImg));
-        min_cluster_binary(segmentedImg == min_cluster_idx) = 1;
+            %Create binary mask for smallest cluster
+            min_cluster_binary = zeros(size(segmentedImg));
+            min_cluster_binary(segmentedImg == min_cluster_idx) = 1;
 
-        %Zobrazení původního a segmentovaného obrázku vedle sebe
+        end
+
+
+        %Suplot of important steps of algorithm 
         figure(2)
         subplot(1,3,2)
         imshow(min_cluster_binary);
         title('2');
         
-        % Aplikace Watershed algoritmu k oddělení jednotlivých kolonií
-        %Vytvoření binárního obrazu s použitím negace a otevření (k odstranění
-        %malých objektů, šumu a zachování větších objektů)
+        %Application of the Watershed algorithm to separate individual colonies
         binaryImage = ~bwareaopen(~min_cluster_binary, 20);
- 
-        %Transformace vzdáleností s binárního obrazu
         distanceTransform = -bwdist(~binaryImage);
-
-        %Aplikace algoritmu Watershed
         watershedLabels = watershed(distanceTransform);
 
-        %Jelikož se jedná o přesegmentování, tak následuje úprava
+        %Since this is an oversegmentation, the following adjustment
         binaryImage2 = binaryImage;
         binaryImage2(watershedLabels == 0) = 0;
 
-        maskMinima = imextendedmin(distanceTransform,2); %definování extrémních minim
+        maskMinima = imextendedmin(distanceTransform,2); 
 
-        imposedMinima = imimposemin(distanceTransform,maskMinima); %přidání minim do obrazu D 
+        imposedMinima = imimposemin(distanceTransform,maskMinima); 
         watershedLabels2 = watershed(imposedMinima);
         resultImage = binaryImage;
-        resultImage(watershedLabels2 == 0) = 0; %finální obraz po Watershed algoritmu
+        
+        %Final image after Watershed algorithm
+        resultImage(watershedLabels2 == 0) = 0; 
 
         
-        % 3.7 Zavolání funkce pro spočítání buněk
-        [validniBunky, pocetValidnichBunek] = zobrazBunkySCislySVelikosti(resultImage,pocet_pixelu);
+        %Call function for calculation colonies
+        [valid_colony, count_valid_colony] = Count_Colonies(resultImage,number_of_pixels);
 
-        % 3.8 Zobrazení barevného odlišení pravých a nepravých kolonií
-         %Zobrazení barevného odlišení pravých a nepravých kolonií
+        %Colour separation of true and false colonies
+        [rows, columns, ~] = size(valid_colony);
 
-        [rows, columns, ~] = size(validniBunky); %Získání rozměrů obrázku
-
-        novy_obraz = zeros(rows, columns, 3, 'uint8'); % Vytvoření nového obrázku s nulovými hodnotami
-
+        new_image = zeros(rows, columns, 3, 'uint8'); 
         for i = 1:rows
             for j = 1:columns
-                % Obarvení buněk na červenou barvu
-                if validniBunky(i, j) > 0
-                    novy_obraz(i, j, :) = [255, 0, 0];
+                %Valid colonies will be red
+                if valid_colony(i, j) > 0
+                    new_image(i, j, :) = [255, 0, 0];
                 end
             end
         end
 
         binaryImageRGB = im2uint8(cat(3, resultImage, resultImage, resultImage));
-        combinedImage = imfuse(binaryImageRGB, novy_obraz,'blend'); %Sjednocení obou snímků pomocí imfuse
+        combinedImage = imfuse(binaryImageRGB, new_image,'blend'); 
 
-        %Extrahování barevných kanálů
+        %Extracted color channels
         redChannel = combinedImage(:, :, 1);
         greenChannel = combinedImage(:, :, 2);
         blueChannel = combinedImage(:, :, 3);
 
-        %Nalzení šedých pixelů
+        %Find gray pixels
         blackPixels = redChannel == 128 & greenChannel  == 128 & blueChannel  == 128;
         redPixels = redChannel == 255 & greenChannel  == 128 & blueChannel  == 128;
-        pocet_modrych = sum(blackPixels(:) == 1);
-        pocet_cervenych = sum(redPixels(:) == 1);
+        number_of_nonvalid_pixels = sum(blackPixels(:) == 1);
+        number_of_valid_pixels = sum(redPixels(:) == 1);
 
-        %Obarvení šedých pixelů na modrou (nepravé kolonie, netvoří 50 buněk)
+        %Gray pixels coloring by cian (false colonies)
         redChannel(blackPixels) = 0;
         greenChannel(blackPixels) = 255;
         blueChannel(blackPixels) = 255;
 
-        %Kombinace snímků a získání výsledného odlišovacího snímku
+        %Kombination of images and final one for color separation of
+        %colonies
         rgbImage = cat(3, redChannel, greenChannel, blueChannel);
         subplot(1,3,3)
         imshow(rgbImage);
         title('3');
 
-        % 3.9 Výpočet plochy pokryté buňkami
-        pomer = pocet_cervenych/(celkovy_pocet_pixelu_ve_vyrezu - cerny_okraj_pocet_pixelu);
-        modre_pomer = pocet_modrych/(celkovy_pocet_pixelu_ve_vyrezu - cerny_okraj_pocet_pixelu);
-        cerne_pomer = (celkovy_pocet_pixelu_ve_vyrezu - cerny_okraj_pocet_pixelu-pocet_cervenych-pocet_modrych)/(celkovy_pocet_pixelu_ve_vyrezu - cerny_okraj_pocet_pixelu);
+        %Calculation of colony area
+        ratio = number_of_valid_pixels/(number_of_pixels_cutout - background_of_cutout);
+        ratio_nonvalid = number_of_nonvalid_pixels/(number_of_pixels_cutout - background_of_cutout);
+        ratio_well = (number_of_pixels_cutout - background_of_cutout-number_of_valid_pixels-number_of_nonvalid_pixels)/(number_of_pixels_cutout - background_of_cutout);
 
-        disp(['Poměr pixelu, ktere zaujimaji bunky v jamce: ', num2str(pomer)]);
-        disp(['Poměr pixelu, ktere zaujimaji nevalidni bunky v jamce: ', num2str(modre_pomer)]);
-        disp(['Poměr pixelu, ktere tvori misku: ', num2str(cerne_pomer)]);
+        disp(['Ratio of pixels of interest to colony in the well: ', num2str(ratio)]);
+        disp(['Ratio of pixels of interest to nonvalid colony in the well: ', num2str(ratio_nonvalid)]);
+        disp(['Ratio of pixels, which forms well: ', num2str(ratio_well)]);
         
         
-        % 3.10 Uložení výsledků
-        plocha_cervene_cm2 = pomer*obsah;
-        plocha_modre_cm2 = modre_pomer*obsah;
-        plocha_miska_cm2 = cerne_pomer*obsah;
-        disp(['Plocha kolonii: ', num2str(plocha_cervene_cm2), ' cm2']);
-        disp(['Plocha nevalidnich kolonii: ', num2str(plocha_modre_cm2), ' cm2']);
-        disp(['Plocha misky: ', num2str(plocha_miska_cm2), ' cm2']);
-        results(snimek+1,2)={plocha_cervene_cm2};
-        results(snimek+1,3)={pocetValidnichBunek};
+        %Saving results
+        area_valid_cm2 = ratio*well_area;
+        area_nonvalid_cm2 = ratio_nonvalid*well_area;
+        area_well_cm2 = ratio_well*well_area;
+        disp(['Colony area: ', num2str(area_valid_cm2), ' cm2']);
+        disp(['Area nonvalid colony: ', num2str(area_nonvalid_cm2), ' cm2']);
+        disp(['Area well: ', num2str(area_well_cm2), ' cm2']);
+        results(i+1,2)={area_valid_cm2};
+        results(i+1,3)={count_valid_colony};
     end
     
 end
 
 
-% Funkce k počítání kolonií a najití pravých kolonií
-function [validniObraz, pocetValidnichBunek]  = zobrazBunkySCislySVelikosti(binarniObraz, minimalniVelikost)
+%Function for finding valid colonies
+function [valid_image, count_valid_colony]  = Count_Colonies(binaryImage, minimalSize)
 
-    %Nalezení spojených komponent (bílých oblastí) na binárním obraze
-    spojeneKomponenty = bwconncomp(binarniObraz);
+    %Find connected area on image
+    connected_component = bwconncomp(binaryImage);
 
-    %Získání vlastností kolonií
-    vlastnostiBunek = regionprops(spojeneKomponenty, 'Centroid', 'Area', 'PixelList');
+    %Get colony property
+    Colony_property = regionprops(connected_component, 'Centroid', 'Area', 'PixelList');
 
-    %Filtrace buněk podle minimální velikosti
-    validniBunky = vlastnostiBunek([vlastnostiBunek.Area] >= minimalniVelikost);
+    %Filtration colony by minimal size
+    valid_colony = Colony_property([Colony_property.Area] >= minimalSize);
 
-    %Vytvoření binárního obrazu obsahujícího pouze validní kolonie
-    validniObraz = false(size(binarniObraz));
+    %Binary image with only walid colonies
+    valid_image = false(size(binaryImage));
 
-    for i = 1:length(validniBunky)
-        pixelList = validniBunky(i).PixelList;
-        indices = sub2ind(size(binarniObraz), pixelList(:, 2), pixelList(:, 1));
-        validniObraz(indices) = true;
+    for i = 1:length(valid_colony)
+        pixelList = valid_colony(i).PixelList;
+        indices = sub2ind(size(binaryImage), pixelList(:, 2), pixelList(:, 1));
+        valid_image(indices) = true;
     end
        
-    %Počet validních kolonie
-    pocetValidnichBunek = length(validniBunky);
-
-    %Zobrazení čísel kolonií vedle středů
-    %for i = 1:pocetValidnichBunek
-    %    text(validniBunky(i).Centroid(1), validniBunky(i).Centroid(2), num2str(i), 'Color', 'red', 'FontSize', 10, 'FontWeight', 'bold');
+    %Count of valid colonies
+    count_valid_colony = length(valid_colony);
+    %for i = 1:count_valid_colony
+    %    text(valid_colony(i).Centroid(1), valid_colony(i).Centroid(2), num2str(i), 'Color', 'red', 'FontSize', 10, 'FontWeight', 'bold');
     %end
 
-    % Výpis počtu validních kolonií
-    fprintf('Počet validních buněk (velikost >= %d): %d\n', minimalniVelikost, pocetValidnichBunek);
+    fprintf('Count of valid colonies (size >= %d): %d\n', minimalSize, count_valid_colony);
 
 end
+
+
 
