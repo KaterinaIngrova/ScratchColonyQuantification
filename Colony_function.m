@@ -96,44 +96,64 @@ function [results] = Colony_function(well_area, path_to_image, colony_minimum)
 
         %Kmeans segmentation 
         img_rgb = cutout_final;
-        img_double = double(reshape(img_rgb, [], 3));
 
-        %Splitting the image in half
+        %Splitting the image in quarters
         [rows, cols, ~] = size(img_rgb);
-        half_rows = round(rows / 2);
-        half_cols = round(cols / 2);
+        quarter_rows = round(rows / 2);
+        quarter_cols = round(cols / 2);
 
         %Number_of_clusters
-        num_clusters = 3;
+        num_clusters = 2;
 
         %Inicialization of the result segmented image
-        segmentedImg = zeros(rows, cols);
+        segmentedImg = zeros(size(img_rgb, 1), size(img_rgb, 2));
+        min_cluster_binary = zeros(size(segmentedImg));
 
-        %For loop for each half
-        for j = 1:2
-            %Actual half
-            row_start = half_rows * (j - 1) + 1;
-            row_end = min(half_rows * j, rows);
+        %For loops for each quarter
+        for i = 1:2
+            for j= 1:2
+                %Actual quarter
+                row_start = quarter_rows * (i - 1) + 1;
+                row_end = min(quarter_rows * i, rows);
+                col_start = quarter_cols * (j - 1) + 1;
+                col_end = min(quarter_cols * j, cols);
 
-            %Actual half image
-            img_half = img_rgb(: ,row_start:row_end, :);
+                %Center of quarter and second point translated by 20 pixels
+                %down
+                center_x = (col_start + col_end) / 2;
+                center_y = (row_start + row_end) / 2;
+                second_point_x = center_x;
+                second_point_y = center_y + 20;
+            
+                start_positions = [center_x, center_y, 0; second_point_x, second_point_y, 0];
+                
+                %Actual qaurter image
+                img_quarter = img_rgb(row_start:row_end,col_start:col_end, :);
+                img_quarter_double = double(reshape(img_quarter, [], 3));
 
-            %Kmeans on half image
-            img_half_double = double(reshape(img_half, [], 3));
-            [~, centers] = kmeans(img_half_double, num_clusters);
-            [~, cluster_idx] = min(pdist2(img_half_double, centers), [], 2);
-            segmentedImg(:,row_start:row_end, :) = reshape(cluster_idx, size(img_half, 1), size(img_half, 2), []);
+                %Not to use k-means on black pixel, which don´t creat well
+                black_pixels = all(img_quarter_double == 0, 2);
+                
+                %Kmeans on quarter image
+                [~, centers] = kmeans(img_quarter_double(~black_pixels, :), num_clusters,'MaxIter', 1000, 'distance', 'sqEuclidean', 'start', start_positions);
+                [~, cluster_idx] = min(pdist2(img_quarter_double(~black_pixels, :), centers), [], 2);
+                
+                %Inicialization of mask for smallest cluster in each quarter
+                quarter_min_cluster_binary = zeros(size(img_quarter, 1), size(img_quarter, 2));
+                quarter_min_cluster_binary(~black_pixels) = cluster_idx;
+                
+                %Put smallest cluster to segmented image
+                segmentedImg(row_start:row_end, col_start:col_end) = quarter_min_cluster_binary;
+                
+                %Number of pixels in each cluster - find the smallest one
+                num_pixels_in_clusters = histcounts(cluster_idx, 1:(num_clusters + 1));
+                [~, min_cluster_idx] = min(num_pixels_in_clusters);
+               
+                %Put mask of smallest cluster to final binary segmented mask
+                min_cluster_binary(row_start:row_end, col_start:col_end) = quarter_min_cluster_binary == min_cluster_idx;
 
-            %Number of pixels in each cluster
-            num_pixels_in_clusters = histcounts(segmentedImg, 1:(num_clusters + 1));
-
-            %Find the smallest cluster
-            [~, min_cluster_idx] = min(num_pixels_in_clusters);
-
-            %Create binary mask for smallest cluster
-            min_cluster_binary = zeros(size(segmentedImg));
-            min_cluster_binary(segmentedImg == min_cluster_idx) = 1;
-
+            
+            end
         end
 
 
@@ -258,6 +278,4 @@ function [valid_image, count_valid_colony]  = Count_Colonies(binaryImage, minima
     fprintf('Count of valid colonies (size >= %d): %d\n', minimalSize, count_valid_colony);
 
 end
-
-
 
