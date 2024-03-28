@@ -1,7 +1,7 @@
 %The effect of gentamicin on the migration of SaOS-2 cell line
 
 %Example of calling function with the obtained results
-%results = Scratch_function('C:\Users\user\Desktop\diplomka\matlab\nove bunky snimky Inna\Scratch', 0.6369);
+%results = Scratch_function('C:\Users\user\Desktop\diplomka\matlab\nove bunky snimky\Scratch', 0.6369);
 
 %The function for the evaluation - the inputs are a path to the microscopy images and size of
 %pixel in micrometers, the obtained results are saved into cell (scratch
@@ -20,6 +20,9 @@ function [results] = Scratch_function(path_to_image, size_of_pixel_micrometer);
     results(1,1) = {'Name of the image'};
     results(1,2) = {'Average scratch width [μm]'};
     results(1,3) = {'Scratch area [mm2]'};
+    
+    %Choose the direction of scratch of all images in file
+    choice = questdlg('Choose a direction of scratch of all images in the file:','Direction of scratch','Horizontal','Vertical', 'Close');
 
     %For loop for loading current image
     for i=1:number_of_images
@@ -28,6 +31,13 @@ function [results] = Scratch_function(path_to_image, size_of_pixel_micrometer);
         concrete_image = imread(name); %load concrete image
         disp('------------------------');
         disp(['Název snímku ', name]);
+        
+        %In the case of horizontal direction of scratch, the image will be
+        %rotated by 90 degree
+        switch choice
+            case 'Horizontal'
+                concrete_image = imrotate(concrete_image, 90);
+        end
 
         %Suplot of important steps of algorithm 
         figure(1); 
