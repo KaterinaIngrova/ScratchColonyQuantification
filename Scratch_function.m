@@ -1,7 +1,7 @@
 %The effect of gentamicin on the migration of SaOS-2 cell line
 
 %Example of calling function with the obtained results
-%results = Scratch_function('C:\Users\user\Desktop\diplomka\matlab\nove bunky snimky\Scratch', 0.6369);
+results = Scratch_function('C:\Users\user\Desktop\EEICT\Scratch', 0.6369);
 
 %The function for the evaluation - the inputs are a path to the microscopy images and size of
 %pixel in micrometers, the obtained results are saved into cell (scratch
@@ -90,7 +90,14 @@ function [results] = Scratch_function(path_to_image, size_of_pixel_micrometer);
         % ylabel('Průměrný jas');
 
         %Finding minimum in brightness profile
-        [minValue, minIndex] = min(imageProfile);
+        center = number_of_columns/2;
+        windowSize = 100;
+        startIdx = max(1, center - windowSize);  %start window
+        endIdx = min(length(imageProfile), center + windowSize);  %end window
+        [minValue, minIndexInWindow] = min(imageProfile(startIdx:endIdx));
+
+        %Put index of minima in window into the index of original image
+        minIndex = minIndexInWindow + startIdx - 1;
         %hold on;
         %plot(minIndex, minValue, 'ro', 'MarkerSize', 10);
 
@@ -158,13 +165,21 @@ function [results] = Scratch_function(path_to_image, size_of_pixel_micrometer);
         morphological_operations = after2;
 
         %Setting first and last 5 rows to 1 for better hole filling 
-        for row = 1:number_of_rows
+       for row = 1:number_of_rows
             for column = 1:number_of_columns
                 if (column <=  nearest_maximum_left || column > nearest_maximum_right) && ((row <= 5 || row > (number_of_rows - 5)) || (column <= 5 || column > (number_of_columns - 5)))
                     morphological_operations(row, column) = 1;
                 end
             end
         end
+
+%         for row = 1:number_of_rows
+%             for column = 1:number_of_columns
+%                 if (column <=  number_of_columns/3 || column > (number_of_columns/3)*2) && ((row <= 5 || row > (number_of_rows - 5)) || (column <= 5 || column > (number_of_columns - 5)))
+%                     morphological_operations(row, column) = 1;
+%                 end
+%             end
+%         end
         
         %Calculate numbef of pixels witch represent cells and pixels witch
         %represent scratch
@@ -173,10 +188,28 @@ function [results] = Scratch_function(path_to_image, size_of_pixel_micrometer);
 
         %Hole filling
         segmented_image = imfill(morphological_operations,'holes');
+        
+        number_black_segmented_image = sum(sum(segmented_image(:, (nearest_maximum_left) : (nearest_maximum_right)) == 0));
+        number_black_morphological = sum(sum(morphological_operations(:,(nearest_maximum_left) : (nearest_maximum_right)) == 0));
 
-        %Diffent way (hole filling was problem) for images wich have got
-        %less then 10% of sctach pixels
-        if number_black/number_of_pixels < 0.1 
+        if abs(number_black_segmented_image - number_black_morphological) > 13000 || number_black_segmented_image < 1500
+            cc = bwconncomp(~morphological_operations);
+            stats = regionprops(cc, 'Area', 'PixelIdxList'); % Získání informací o každé komponentě
+
+            % Vyplnění pouze izolovaných děr
+            segmented_image = morphological_operations; % Výsledný obrázek bude původní s některými dírami vyplněnými
+            for hole_fill = 1:cc.NumObjects
+                % Pokud je oblast menší než určitý práh, vyplňte ji
+                if stats(hole_fill).Area < 6000
+                    segmented_image(stats(hole_fill).PixelIdxList) = 1; % Vyplnění díry v původním obraze
+                end
+            end
+
+        end
+        
+        
+        %Diffent way (hole filling was problem) for images wich are quite overgrown
+        if  mean(std(edge_image))> 0.26 
 
             %Create local map of standard deviation
             local_std = stdfilt(contrast_enhancement);
@@ -223,7 +256,7 @@ function [results] = Scratch_function(path_to_image, size_of_pixel_micrometer);
             segmented_image = imfill(after_o, 'holes');
             
             %Scratch area without filling holes
-            segmented_image(:, nearest_maximum_left:nearest_maximum_right) = after_o(:, nearest_maximum_left:nearest_maximum_right);
+            segmented_image(:, nearest_maximum_left:nearest_maximum_right) = after_o(:,nearest_maximum_left:nearest_maximum_right) ;
         
             
             %Find in segmented image scratch part
@@ -233,9 +266,9 @@ function [results] = Scratch_function(path_to_image, size_of_pixel_micrometer);
             %hold on;
             
             %For loop for all sratch part
-            for i = 1:zero_regions.NumObjects
+            for j = 1:zero_regions.NumObjects
                 %Get pixels of each part
-                pixels = zero_regions.PixelIdxList{i};
+                pixels = zero_regions.PixelIdxList{j};
                 [rows, cols] = ind2sub(size(segmented_image), pixels);
                 %plot(cols, rows, 'r.', 'MarkerSize', 5);
             end
@@ -245,9 +278,9 @@ function [results] = Scratch_function(path_to_image, size_of_pixel_micrometer);
             %Find average brightness for them
             average_brightness_value = zeros(1, zero_regions.NumObjects);
 
-            for i = 1:zero_regions.NumObjects
+            for area = 1:zero_regions.NumObjects
                 %Find pixels for each region
-                pixels = zero_regions.PixelIdxList{i};
+                pixels = zero_regions.PixelIdxList{area};
 
                 %Find brightness in region
                 brightness_values = contrast_enhancement(pixels);
@@ -298,5 +331,7 @@ function [results] = Scratch_function(path_to_image, size_of_pixel_micrometer);
 
     end
 end
+
+
 
 
